@@ -3,8 +3,6 @@ package backuprunner
 import (
 	"errors"
 	"strings"
-
-	"github.com/ermos/dotenv"
 )
 
 type Config struct {
