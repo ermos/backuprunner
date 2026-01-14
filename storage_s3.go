@@ -1,18 +1,19 @@
 package backuprunner
 
 import (
-"context"
-"fmt"
-"os"
-"path/filepath"
-"sort"
-"strings"
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
-"github.com/aws/aws-sdk-go-v2/aws"
-"github.com/aws/aws-sdk-go-v2/config"
-"github.com/aws/aws-sdk-go-v2/credentials"
-"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // S3Storage implements Storage interface for S3-compatible storage
@@ -81,7 +82,11 @@ func (s *S3Storage) Upload(ctx context.Context, sourcePath string, backupName st
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		if errFileClose := file.Close(); err != nil {
+			log.Printf("failed to close source file: %v", errFileClose)
+		}
+	}(file)
 
 	key := s.getKey(backupName)
 

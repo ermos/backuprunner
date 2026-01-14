@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -36,26 +37,34 @@ func (s *LocalStorage) Upload(ctx context.Context, sourcePath string, backupName
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer src.Close()
+	defer func(src *os.File) {
+		if errSrcClose := src.Close(); err != nil {
+			log.Printf("failed to close source file: %v", errSrcClose)
+		}
+	}(src)
 
 	// Create destination file
 	dst, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer dst.Close()
+	defer func(dst *os.File) {
+		if errDstClose := dst.Close(); err != nil {
+			log.Printf("failed to close destination file: %v", errDstClose)
+		}
+	}(dst)
 
 	// Copy with context cancellation support
 	done := make(chan error, 1)
 	go func() {
-		_, err := io.Copy(dst, src)
-		done <- err
+		_, errIoCopy := io.Copy(dst, src)
+		done <- errIoCopy
 	}()
 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case err := <-done:
+	case err = <-done:
 		if err != nil {
 			return fmt.Errorf("failed to copy file: %w", err)
 		}

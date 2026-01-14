@@ -2,8 +2,10 @@ package backuprunner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,7 +36,7 @@ func NewGCPStorage(credentialsFile, bucket, backupPrefix string) (*GCPStorage, e
 
 	if credentialsFile != "" {
 		// Use service account JSON file
-		client, err = storage.NewClient(ctx, option.WithCredentialsFile(credentialsFile))
+		client, err = storage.NewClient(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, credentialsFile))
 	} else {
 		// Use default credentials (GOOGLE_APPLICATION_CREDENTIALS env var or metadata server)
 		client, err = storage.NewClient(ctx)
@@ -57,15 +59,23 @@ func (s *GCPStorage) Upload(ctx context.Context, sourcePath string, backupName s
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		if errFileClose := file.Close(); err != nil {
+			log.Printf("failed to close file %q: %v", sourcePath, errFileClose)
+		}
+	}(file)
 
 	objectName := s.getObjectName(backupName)
 	obj := s.client.Bucket(s.bucket).Object(objectName)
 
 	writer := obj.NewWriter(ctx)
-	defer writer.Close()
+	defer func(writer *storage.Writer) {
+		if errWriterClose := writer.Close(); err != nil {
+			log.Printf("failed to close GCS writer for object %q: %v", objectName, errWriterClose)
+		}
+	}(writer)
 
-	if _, err := io.Copy(writer, file); err != nil {
+	if _, err = io.Copy(writer, file); err != nil {
 		return fmt.Errorf("failed to upload to GCS: %w", err)
 	}
 
@@ -85,7 +95,7 @@ func (s *GCPStorage) List(ctx context.Context) ([]string, error) {
 	var backups []string
 	for {
 		attrs, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {

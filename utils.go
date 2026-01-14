@@ -1,9 +1,9 @@
 package backuprunner
 
 import (
-"context"
-"fmt"
-"log"
+	"context"
+	"fmt"
+	"log"
 )
 
 func applyRetentionPolicy(ctx context.Context, s Storage, retentionCount int) error {
