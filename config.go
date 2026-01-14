@@ -40,29 +40,11 @@ type Config struct {
 	RetentionCount int `env:"RETENTION_COUNT" default:"0"`
 }
 
-func Load() (*Config, error) {
-	// Try to load .env file (optional, won't fail if not found)
-	_ = dotenv.Parse(".env")
-
-	var cfg Config
-	if err := dotenv.LoadStruct(&cfg); err != nil {
-		return nil, err
+func ConfigValidate(c *Config) error {
+	if c.GCSBucket != "" {
+		c.GCPBucket, c.GCPBackupPrefix = parseGCSUri(c.GCSBucket)
 	}
-
-	// Parse GCS_BUCKET URI (format: gs://bucket-name/optional/prefix)
-	if cfg.GCSBucket != "" {
-		cfg.GCPBucket, cfg.GCPBackupPrefix = parseGCSUri(cfg.GCSBucket)
-	}
-
-	// Validate storage-specific requirements
-	if err := cfg.validate(); err != nil {
-		return nil, err
-	}
-
-	return &cfg, nil
-}
-
-func (c *Config) validate() error {
+	
 	switch c.StorageType {
 	case "s3":
 		if c.S3Bucket == "" {
